@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Expense, ExpenseType, Shift } from '@/types/database'
 import { formatCurrency } from '@/lib/utils'
@@ -10,9 +10,10 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
-import { Plus, Trash2, Receipt, Car, UtensilsCrossed, ParkingCircle, BedDouble, MoreHorizontal } from 'lucide-react'
+import { Plus, Trash2, Receipt, Car, UtensilsCrossed, ParkingCircle, BedDouble, MoreHorizontal, ScanLine } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { ReceiptScanner } from './ReceiptScanner'
 
 interface ExpenseTrackerProps {
   activeShift: Shift
@@ -45,6 +46,7 @@ export function ExpenseTracker({ activeShift, expenses, onExpenseChange }: Expen
   const [description, setDescription] = useState('')
   const [loading, setLoading] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [scannerOpen, setScannerOpen] = useState(false)
   const supabase = createClient()
 
   const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0)
@@ -91,6 +93,23 @@ export function ExpenseTracker({ activeShift, expenses, onExpenseChange }: Expen
     }
   }
 
+  const handleScanConfirm = useCallback(async ({ amount, description, type }: { amount: number; description: string; type: ExpenseType }) => {
+    try {
+      const { error } = await supabase.from('expenses').insert({
+        shift_id: activeShift.id,
+        user_id: activeShift.user_id,
+        type,
+        amount,
+        description: description || null,
+      })
+      if (error) throw error
+      toast.success('Receipt expense added')
+      onExpenseChange()
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to add expense')
+    }
+  }, [activeShift, supabase, onExpenseChange])
+
   return (
     <Card className="border-border/50 bg-card/50">
       <CardHeader className="pb-3">
@@ -99,6 +118,15 @@ export function ExpenseTracker({ activeShift, expenses, onExpenseChange }: Expen
             <Receipt className="h-4 w-4 text-muted-foreground" />
             Expenses
           </CardTitle>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 -mr-1"
+            onClick={() => setScannerOpen(true)}
+          >
+            <ScanLine className="h-3.5 w-3.5" />
+            Scan
+          </Button>
           {totalExpenses > 0 && (
             <Badge variant="secondary" className="font-mono">
               {formatCurrency(totalExpenses)}
@@ -205,6 +233,12 @@ export function ExpenseTracker({ activeShift, expenses, onExpenseChange }: Expen
           </p>
         )}
       </CardContent>
+
+      <ReceiptScanner
+        open={scannerOpen}
+        onOpenChange={setScannerOpen}
+        onConfirm={handleScanConfirm}
+      />
     </Card>
   )
 }
