@@ -43,6 +43,7 @@ export interface Expense {
   type: ExpenseType
   amount: number
   description: string | null
+  receipt_image_url: string | null
   created_at: string
 }
 

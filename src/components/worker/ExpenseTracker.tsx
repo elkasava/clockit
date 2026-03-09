@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
-import { Plus, Trash2, Receipt, Car, UtensilsCrossed, ParkingCircle, BedDouble, MoreHorizontal, ScanLine } from 'lucide-react'
+import { Plus, Trash2, Receipt, Car, UtensilsCrossed, ParkingCircle, BedDouble, MoreHorizontal, ScanLine, ImageIcon, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { ReceiptScanner } from './ReceiptScanner'
@@ -47,6 +47,7 @@ export function ExpenseTracker({ activeShift, expenses, onExpenseChange }: Expen
   const [loading, setLoading] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [scannerOpen, setScannerOpen] = useState(false)
+  const [viewingReceiptId, setViewingReceiptId] = useState<string | null>(null)
   const supabase = createClient()
 
   const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0)
@@ -82,6 +83,11 @@ export function ExpenseTracker({ activeShift, expenses, onExpenseChange }: Expen
   const handleDelete = async (expenseId: string) => {
     setDeletingId(expenseId)
     try {
+      // Delete receipt image from storage if it exists
+      const expense = expenses.find(e => e.id === expenseId)
+      if (expense?.receipt_image_url) {
+        await supabase.storage.from('receipts').remove([expense.receipt_image_url])
+      }
       const { error } = await supabase.from('expenses').delete().eq('id', expenseId)
       if (error) throw error
       toast.success('Expense removed')
@@ -93,17 +99,75 @@ export function ExpenseTracker({ activeShift, expenses, onExpenseChange }: Expen
     }
   }
 
-  const handleScanConfirm = useCallback(async ({ amount, description, type }: { amount: number; description: string; type: ExpenseType }) => {
+  const handleViewReceipt = useCallback(async (expense: Expense) => {
+    if (!expense.receipt_image_url) return
+    setViewingReceiptId(expense.id)
     try {
-      const { error } = await supabase.from('expenses').insert({
-        shift_id: activeShift.id,
-        user_id: activeShift.user_id,
-        type,
-        amount,
-        description: description || null,
-      })
+      const { data, error } = await supabase.storage
+        .from('receipts')
+        .createSignedUrl(expense.receipt_image_url, 60) // 60-second signed URL
       if (error) throw error
-      toast.success('Receipt expense added')
+      window.open(data.signedUrl, '_blank', 'noopener,noreferrer')
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to open receipt image')
+    } finally {
+      setViewingReceiptId(null)
+    }
+  }, [supabase])
+
+  const handleScanConfirm = useCallback(async ({
+    amount,
+    description,
+    type,
+    imageFile,
+  }: {
+    amount: number
+    description: string
+    type: ExpenseType
+    imageFile: File
+  }) => {
+    try {
+      // 1. Insert expense and get the new id back
+      const { data: newExpense, error: insertError } = await supabase
+        .from('expenses')
+        .insert({
+          shift_id: activeShift.id,
+          user_id: activeShift.user_id,
+          type,
+          amount,
+          description: description || null,
+        })
+        .select('id')
+        .single()
+      if (insertError) throw insertError
+
+      // 2. Upload receipt image to Supabase Storage
+      const ext = imageFile.name.split('.').pop() ?? 'jpg'
+      const storagePath = `${activeShift.user_id}/${newExpense.id}.${ext}`
+
+      const { error: uploadError } = await supabase.storage
+        .from('receipts')
+        .upload(storagePath, imageFile, { contentType: imageFile.type, upsert: false })
+
+      if (uploadError) {
+        // Don't fail the whole expense — just warn
+        toast.warning('Expense saved but receipt image upload failed')
+        onExpenseChange()
+        return
+      }
+
+      // 3. Update expense with storage path
+      const { error: updateError } = await supabase
+        .from('expenses')
+        .update({ receipt_image_url: storagePath })
+        .eq('id', newExpense.id)
+
+      if (updateError) {
+        toast.warning('Expense saved but could not link receipt image')
+      } else {
+        toast.success('Receipt expense added with photo backup')
+      }
+
       onExpenseChange()
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to add expense')
@@ -209,10 +273,25 @@ export function ExpenseTracker({ activeShift, expenses, onExpenseChange }: Expen
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="font-mono text-sm font-medium">
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className="font-mono text-sm font-medium mr-1">
                       {formatCurrency(expense.amount)}
                     </span>
+                    {expense.receipt_image_url && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10"
+                        onClick={() => handleViewReceipt(expense)}
+                        disabled={viewingReceiptId === expense.id}
+                        title="View receipt photo"
+                      >
+                        {viewingReceiptId === expense.id
+                          ? <ExternalLink className="h-3 w-3 animate-pulse" />
+                          : <ImageIcon className="h-3 w-3" />
+                        }
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="icon"
