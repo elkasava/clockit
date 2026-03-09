@@ -125,7 +125,8 @@ create policy "shifts: worker inserts own"
 
 create policy "shifts: worker updates own active shift"
   on public.shifts for update
-  using (user_id = auth.uid() and status = 'active');
+  using (user_id = auth.uid() and status = 'active')
+  with check (user_id = auth.uid());
 
 create policy "shifts: manager updates any"
   on public.shifts for update
