@@ -2,9 +2,8 @@
 
 import { createClient } from '@/lib/supabase/client'
 import type { Profile } from '@/types/database'
-import { Clock, LogOut, Settings, User } from 'lucide-react'
+import { Clock, LogOut, Settings, User, Zap } from 'lucide-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Badge } from '@/components/ui/badge'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,12 +14,14 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
+import { cn } from '@/lib/utils'
 
 interface TopNavProps {
   profile: Profile
+  isActive?: boolean
 }
 
-export function TopNav({ profile }: TopNavProps) {
+export function TopNav({ profile, isActive = false }: TopNavProps) {
   const supabase = createClient()
   const router = useRouter()
 
@@ -38,48 +39,77 @@ export function TopNav({ profile }: TopNavProps) {
     .toUpperCase()
     .slice(0, 2)
 
+  const isManager = profile.role === 'manager'
+
   return (
-    <nav className="border-b border-border/50 bg-card/50 backdrop-blur-sm sticky top-0 z-50">
-      <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
+    <nav className="sticky top-0 z-50 border-b border-white/[0.06] bg-[#0A0D14]/80 backdrop-blur-2xl">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
+
         {/* Logo */}
-        <div className="flex items-center gap-2">
-          <div className="h-7 w-7 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
-            <Clock className="h-4 w-4 text-primary" />
+        <div className="flex items-center gap-3">
+          <div className="relative h-8 w-8 rounded-xl bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 border border-emerald-500/20 flex items-center justify-center">
+            <Clock className="h-4 w-4 text-emerald-400" />
+            {isActive && (
+              <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-[#0A0D14]" />
+            )}
           </div>
-          <span className="font-bold text-sm tracking-tight">Clock It</span>
+          <div className="flex flex-col leading-none">
+            <span className="font-bold text-sm tracking-tight gradient-text">Clock It</span>
+            <span className="text-[10px] text-white/30 tracking-widest uppercase">
+              {isManager ? 'Command' : 'Workforce'}
+            </span>
+          </div>
         </div>
 
-        {/* Right side */}
+        {/* Centre pill — manager mode indicator */}
+        {isManager && (
+          <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-violet-500/10 border border-violet-500/20 text-xs font-medium text-violet-400">
+            <Zap className="h-3 w-3" />
+            Manager View
+          </div>
+        )}
+
+        {/* Right */}
         <div className="flex items-center gap-3">
-          <Badge variant="outline" className="capitalize text-xs">
-            {profile.role}
-          </Badge>
+          {/* Role badge */}
+          <div className={cn(
+            'hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border',
+            isActive
+              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+              : 'bg-white/5 border-white/10 text-white/50'
+          )}>
+            {isActive && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+            {isActive ? 'On shift' : profile.role}
+          </div>
 
           <DropdownMenu>
-            <DropdownMenuTrigger className="rounded-full focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background">
-              <Avatar className="h-8 w-8">
-                <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+            <DropdownMenuTrigger className="rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0D14]">
+              <Avatar className="h-8 w-8 ring-2 ring-white/10 hover:ring-emerald-500/40 transition-all">
+                <AvatarFallback className="bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 text-emerald-400 text-xs font-bold">
                   {initials}
                 </AvatarFallback>
               </Avatar>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuLabel className="font-normal">
-                <p className="text-sm font-medium truncate">{profile.full_name ?? 'User'}</p>
-                <p className="text-xs text-muted-foreground truncate">{profile.email}</p>
+            <DropdownMenuContent align="end" className="w-52 bg-[#161B28] border-white/8 shadow-2xl">
+              <DropdownMenuLabel className="font-normal py-2.5">
+                <p className="text-sm font-semibold truncate text-white/90">{profile.full_name ?? 'User'}</p>
+                <p className="text-xs text-white/35 truncate mt-0.5">{profile.email}</p>
               </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem disabled>
-                <User className="mr-2 h-4 w-4" />
+              <DropdownMenuSeparator className="bg-white/6" />
+              <DropdownMenuItem disabled className="text-white/40 text-xs gap-2">
+                <User className="h-3.5 w-3.5" />
                 Profile
               </DropdownMenuItem>
-              <DropdownMenuItem disabled>
-                <Settings className="mr-2 h-4 w-4" />
+              <DropdownMenuItem disabled className="text-white/40 text-xs gap-2">
+                <Settings className="h-3.5 w-3.5" />
                 Settings
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:text-destructive">
-                <LogOut className="mr-2 h-4 w-4" />
+              <DropdownMenuSeparator className="bg-white/6" />
+              <DropdownMenuItem
+                onClick={handleSignOut}
+                className="text-red-400 focus:text-red-300 focus:bg-red-500/10 text-xs gap-2"
+              >
+                <LogOut className="h-3.5 w-3.5" />
                 Sign out
               </DropdownMenuItem>
             </DropdownMenuContent>
