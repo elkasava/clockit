@@ -118,20 +118,22 @@ export function ExpenseTracker({ activeShift, expenses, onExpenseChange }: Expen
             <Receipt className="h-4 w-4 text-muted-foreground" />
             Expenses
           </CardTitle>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 -mr-1"
-            onClick={() => setScannerOpen(true)}
-          >
-            <ScanLine className="h-3.5 w-3.5" />
-            Scan
-          </Button>
-          {totalExpenses > 0 && (
-            <Badge variant="secondary" className="font-mono">
-              {formatCurrency(totalExpenses)}
-            </Badge>
-          )}
+          <div className="flex items-center gap-2">
+            {totalExpenses > 0 && (
+              <Badge variant="secondary" className="font-mono">
+                {formatCurrency(totalExpenses)}
+              </Badge>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 -mr-1"
+              onClick={() => setScannerOpen(true)}
+            >
+              <ScanLine className="h-3.5 w-3.5" />
+              Scan
+            </Button>
+          </div>
         </div>
       </CardHeader>
 
